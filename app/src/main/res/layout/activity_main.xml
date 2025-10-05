@@ -28,30 +28,11 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent">
 
-        <!--
-        <androidx.camera.view.PreviewView
-            android:id="@+id/previewView"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:visibility="gone"/>
-        -->
-        <!--
-        <SurfaceView
-            android:id="@+id/surfaceView"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"/>
-        -->
         <com.example.facelearn.CustomSurfaceView
             android:id="@+id/surfaceView"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             tools:ignore="MissingPrefix" />
-        <!--
-        <TextureView
-            android:id="@+id/textureView"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"/>
-        -->
 
     </FrameLayout>
 
