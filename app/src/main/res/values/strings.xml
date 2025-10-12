@@ -1,6 +1,13 @@
 <resources>
     <string name="app_name">Face Learn</string>
+
     <string name="title_look">検知</string>
+    <string name="button_search_description">search face</string>
+
     <string name="title_register">登録</string>
+    <string name="register_image_button_content_description">add face</string>
+    <string name="dialog_add_face_name_hint">お名前は？</string>
+    <string name="dialog_add_face_image_description">The face bitmap</string>
+
     <string name="title_manage">管理</string>
 </resources>

@@ -18,6 +18,7 @@ import android.hardware.camera2.params.Face;
 import android.media.Image;
 import android.media.ImageReader;
 import android.os.Handler;
+import android.os.HandlerThread;
 import android.util.Log;
 import android.util.Size;
 import android.view.SurfaceHolder;
@@ -33,6 +34,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 
 public class CameraControl {
+    private static final String TAG = "CameraControl";
 
     private Executor cameraExecutor = Executors.newSingleThreadExecutor();
     ;
@@ -50,44 +52,66 @@ public class CameraControl {
 
     private CaptureCompleted onCaptureCompleted;
 
+    private CaptureFailed onCaptureFailed;
+
+    private int cameraIndex = 1;
+
+    private HandlerThread handlerThread;
+
     public interface CaptureCompleted {
         void onCaptureCompleted(Bitmap bitmap);
+    }
+
+    public interface CaptureFailed {
+        void onCaptureFailed();
     }
 
     public void initialze(
             Context context,
             Handler cameraHandler,
-            SurfaceHolder holder,
-            CaptureCompleted onCaptureCompleted) {
+            SurfaceHolder holder
+//            ,
+//            CaptureCompleted onCaptureCompleted
+    ) {
         this.context = context;
         this.cameraHandler = cameraHandler;
-        this.surfaceHolder = holder;
-        this.onCaptureCompleted = onCaptureCompleted;
+
+        handlerThread = new HandlerThread("camera-control");
+        handlerThread.start();
+        this.cameraHandler = new Handler(handlerThread.getLooper());
+
+//        this.onCaptureCompleted = onCaptureCompleted;
 
         this.cameraManager = (CameraManager) this.context.getSystemService(Context.CAMERA_SERVICE);
 
-        holder.addCallback(new SurfaceHolder.Callback() {
-            @Override
-            public void surfaceChanged(@NonNull SurfaceHolder holder, int format, int width, int height) {
-                Log.d("MainActivity", "surfaceChanged");
-            }
+        if (this.surfaceHolder == null) {
+            holder.addCallback(new SurfaceHolder.Callback() {
+                @Override
+                public void surfaceChanged(@NonNull SurfaceHolder holder, int format, int width, int height) {
+                    Log.d(TAG, "surfaceChanged");
+                    // CameraControl.this.surfaceHolder = holder;
+                }
 
-            @Override
-            public void surfaceCreated(@NonNull SurfaceHolder holder) {
-                Log.d("MainActivity", "surfaceCreated");
+                @Override
+                public void surfaceCreated(@NonNull SurfaceHolder holder) {
+                    Log.d(TAG, "surfaceCreated");
+                    CameraControl.this.surfaceHolder = holder;
+                    initCamera2(cameraManager);
+                }
 
-                initCamera2(cameraManager);
-            }
-
-            @Override
-            public void surfaceDestroyed(@NonNull SurfaceHolder holder) {
-                Log.d("MainActivity", "surfaceDestroyed");
-            }
-        });
+                @Override
+                public void surfaceDestroyed(@NonNull SurfaceHolder holder) {
+                    Log.d(TAG, "surfaceDestroyed");
+                    CameraControl.this.surfaceHolder = null;
+                }
+            });
+        } else {
+            initCamera2(cameraManager);
+        }
     }
 
     public void initCamera2(CameraManager cameraManager) {
-        Log.d("MainActivity", "initCamera2");
+        Log.d(TAG, "initCamera2");
         if (ActivityCompat.checkSelfPermission(this.context,
                 Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
             // TODO: Consider calling
@@ -102,9 +126,10 @@ public class CameraControl {
         try {
             String[] cameraIds = cameraManager.getCameraIdList();
             for (String id : cameraIds) {
-                Log.d("MainActivity", "camera id: " + id);
+                Log.d(TAG, "camera id: " + id);
             }
-            String cameraId = cameraIds[1];
+            String cameraId = cameraIds[cameraIndex % cameraIds.length];
+            Log.d(TAG, "cameraId = " + cameraId);
 
             CameraCharacteristics characteristics = cameraManager.getCameraCharacteristics(cameraId);
             // characteristics.get(CameraCharacteristics.SENSOR_INFO_PIXEL_ARRAY_SIZE);
@@ -115,7 +140,7 @@ public class CameraControl {
 
             imageReader.setOnImageAvailableListener(
                     reader -> {
-                        Log.d("MainActivity", "setOnImageAvailableListener");
+                        Log.d(TAG, "setOnImageAvailableListener");
                     },
                     cameraHandler);
 
@@ -129,17 +154,17 @@ public class CameraControl {
     CameraDevice.StateCallback cameraDeviceStateCallback = new CameraDevice.StateCallback() {
         @Override
         public void onDisconnected(@NonNull CameraDevice camera) {
-            Log.d("MainActivity", "onDisconnected");
+            Log.d(TAG, "onDisconnected");
         }
 
         @Override
         public void onError(@NonNull CameraDevice camera, int error) {
-            Log.d("MainActivity", "onError");
+            Log.d(TAG, "onError");
         }
 
         @Override
         public void onOpened(@NonNull CameraDevice cameraDevice) {
-            Log.d("MainActivity", "onOpened");
+            Log.d(TAG, "onOpened");
             try {
                 cameraDevice.createCaptureSession(
                         List.of(
@@ -159,21 +184,21 @@ public class CameraControl {
             = new CameraCaptureSession.StateCallback() {
         @Override
         public void onConfigureFailed(@NonNull CameraCaptureSession session) {
-            Log.d("MainActivity", "onConfigureFailed");
+            Log.d(TAG, "onConfigureFailed");
             CameraControl.this.session = null;
         }
 
         @Override
         public void onConfigured(@NonNull CameraCaptureSession session) {
-            Log.d("MainActivity", "onConfigured");
+            Log.d(TAG, "onConfigured");
             CameraControl.this.session = session;
-            requestCapture(session);
-            requestCaptureFace(session);
+            requestCapturePreview(session);
+            // requestCaptureFace(session);
         }
     };
 
-    void requestCapture(@NonNull CameraCaptureSession session) {
-        Log.d("MainActivity", "requestCapture");
+    void requestCapturePreview(@NonNull CameraCaptureSession session) {
+        Log.d(TAG, "requestCapturePreview");
         try {
             CameraDevice cameraDevice = session.getDevice();
             CaptureRequest.Builder captureRequestPreview
@@ -191,7 +216,7 @@ public class CameraControl {
     }
 
     void requestCaptureFace(@NonNull CameraCaptureSession session) {
-        Log.d("MainActivity", "requestCapture");
+        Log.d(TAG, "requestCaptureFace");
         try {
             CameraDevice cameraDevice = session.getDevice();
             CaptureRequest.Builder captureRequest
@@ -204,8 +229,24 @@ public class CameraControl {
         } catch (CameraAccessException e) {
             // throw new RuntimeException(e);
             e.printStackTrace();
+        } catch (IllegalArgumentException e) {
+            e.printStackTrace();
         }
     }
+
+    public void findFace(CaptureCompleted completed) {
+        findFace(completed, null);
+    }
+
+    public void findFace(CaptureCompleted completed, CaptureFailed failed) {
+        Log.d(TAG, "findFace");
+        if (session != null) {
+            onCaptureCompleted = completed;
+            onCaptureFailed = failed;
+            requestCaptureFace(session);
+        }
+    }
+
 
     CameraCaptureSession.CaptureCallback captureCallback = new CameraCaptureSession.CaptureCallback() {
 
@@ -214,26 +255,34 @@ public class CameraControl {
                 @NonNull CameraCaptureSession session,
                 @NonNull CaptureRequest request,
                 @NonNull TotalCaptureResult result) {
+            Log.d(TAG, "onCaptureCompleted");
             super.onCaptureCompleted(session, request, result);
-            Log.d("MainActivity", "onCaptureCompleted");
+
             Face[] faces = result.get(CaptureResult.STATISTICS_FACES);
             if (faces == null || faces.length == 0) {
-                Log.d("MainActivity", "face: none");
+                Log.d(TAG, "face: none");
                 try {
                     Thread.sleep(100);
                 } catch (InterruptedException e) {
-                    Log.d("MainActivity", "sleep error");
+                    Log.d(TAG, "sleep error");
                 }
-                requestCaptureFace(session);
+                // requestCaptureFace(session);
+                if (onCaptureFailed != null) {
+                    onCaptureFailed.onCaptureFailed();
+                }
             } else {
                 for (Face f : faces) {
-                    Log.d("MainActivity", "face: " + f);
+                    Log.d(TAG, "face: " + f);
                 }
                 Face face = faces[0];
                 Image image = imageReader.acquireLatestImage();
+                if (image == null) {
+                    Log.e(TAG, "onCaptureCompleted: image is null.");
+                    onCaptureFailed.onCaptureFailed();
+                    return;
+                }
                 image.setCropRect(face.getBounds());
 
-                // Bitmap bitmap = convertImageToBitmap(image);
                 Bitmap bitmap0 = ImageUtil.imageToBitmap(image);
                 Bitmap bitmap = Bitmap.createBitmap(
                         bitmap0,
@@ -242,6 +291,8 @@ public class CameraControl {
                         face.getBounds().right - face.getBounds().left,
                         face.getBounds().bottom - face.getBounds().top
                 );
+
+                image.close();
 
                 if (onCaptureCompleted != null) {
                     onCaptureCompleted.onCaptureCompleted(bitmap);
@@ -254,9 +305,17 @@ public class CameraControl {
                 @NonNull CameraCaptureSession session,
                 @NonNull CaptureRequest request,
                 @NonNull CaptureFailure failure) {
+            Log.d(TAG, "onCaptureFailed");
             super.onCaptureFailed(session, request, failure);
-            Log.d("MainActivity", "onCaptureFailed");
+
+            if (onCaptureFailed != null) {
+                onCaptureFailed.onCaptureFailed();
+            }
         }
     };
 
+    public void switchCamera() {
+        Log.d(TAG, "switchCamera");
+        cameraIndex++;
+    }
 }

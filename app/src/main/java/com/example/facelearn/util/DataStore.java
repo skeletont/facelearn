@@ -6,7 +6,9 @@ import android.content.SharedPreferences;
 import android.util.Log;
 
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 public class DataStore {
     private static final String TAG = "DataStore";
@@ -14,9 +16,29 @@ public class DataStore {
     private SharedPreferences name;
     private SharedPreferences vector;
 
+    public List<Record> getList() {
+        return this.name.getAll().entrySet().stream()
+                .map(entry -> new Record(entry.getKey(), entry.getValue().toString()))
+                .collect(Collectors.toList());
+    }
+
+    public static class Record {
+        public final String key;
+        public final String name;
+
+        public Record(String key, String name) {
+            this.key = key;
+            this.name = name;
+        }
+    }
     public static class Result {
-        double point;
-        String name;
+        public final double point;
+        public final String name;
+
+        public Result(double point, String name) {
+            this.point = point;
+            this.name = name;
+        }
     }
     public DataStore(Context context){
         this.context = context;
@@ -31,7 +53,7 @@ public class DataStore {
     }
 
     public Result nearest(String vecStr) {
-        Result result = null;
+        Result result = new Result(-1.0, "unknown");
         Map<String, ?> data = this.vector.getAll();
         double[] a = toDoubleArray(vecStr);
         Log.d(TAG, "a length: " + a.length);
@@ -42,9 +64,7 @@ public class DataStore {
                 double point = dotProduct(a,b);
 
                 if (result == null || result.point < point) {
-                    result = new Result();
-                    result.point = point;
-                    result.name = this.name.getString(keyValue.getKey(), "");
+                    result = new Result(point, this.name.getString(keyValue.getKey(), ""));
                 }
             }
         }
