@@ -11,6 +11,7 @@ import com.example.facelearn.FaceLearnException;
 
 public class PythonControl {
     private Context context;
+
     public PythonControl(Context context) {
         this.context = context;
     }

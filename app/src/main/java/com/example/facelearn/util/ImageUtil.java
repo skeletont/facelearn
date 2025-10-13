@@ -2,6 +2,7 @@ package com.example.facelearn.util;
 
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Matrix;
 import android.media.Image;
 
 import java.io.ByteArrayOutputStream;

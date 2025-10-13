@@ -1,5 +1,6 @@
 package com.example.facelearn;
 
+import android.content.res.AssetManager;
 import android.os.Bundle;
 import android.os.Handler;
 import android.util.Log;
@@ -9,15 +10,22 @@ import androidx.navigation.NavController;
 import androidx.navigation.Navigation;
 import androidx.navigation.ui.AppBarConfiguration;
 import androidx.navigation.ui.NavigationUI;
+import androidx.appcompat.widget.Toolbar;
 
 import com.example.facelearn.databinding.ActivityMainBinding;
 import com.example.facelearn.util.CameraControl;
 import com.example.facelearn.util.DataStore;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 
-public class MainActivity extends AppCompatActivity {
-    private static final String TAG = "MainActivity";
+
+public class FaceLearnActivity extends AppCompatActivity {
+    private static final String TAG = "FaceLearnActivity";
     private ActivityMainBinding binding;
 
     private Handler cameraHandler;
@@ -30,6 +38,32 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         Log.d(TAG, "onCreate");
         super.onCreate(savedInstanceState);
+
+        // 作業ディレクトリを作成
+        File dir = new File(Constant.TEMPORAL_FILE_PATH).getParentFile();
+        if (!dir.exists()) {
+            dir.mkdirs();
+        }
+
+        // Pythonに読み込ませるデータファイルを作成
+        AssetManager assetManager = getAssets();
+        File ptFile = new File(Constant.KNOWLEDGE_FILE_PATH);
+        if (!ptFile.exists()) {
+            try (
+                    // please download https://github.com/timesler/facenet-pytorch/releases/download/v2.2.9/20180402-114759-vggface2.pt
+                    InputStream is = assetManager.open("pt/20180402-114759-vggface2.pt");
+                    OutputStream os = new FileOutputStream(ptFile)
+            ) {
+                byte[] buffer = new byte[2048];
+                int bufLen = 0;
+                while ((bufLen = is.read(buffer)) > 0) {
+                    os.write(buffer, 0, bufLen);
+                    os.flush();
+                }
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
 
         binding = ActivityMainBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
@@ -46,6 +80,9 @@ public class MainActivity extends AppCompatActivity {
         NavigationUI.setupActionBarWithNavController(this, navController, appBarConfiguration);
         NavigationUI.setupWithNavController(binding.navView, navController);
 
+//        Toolbar toolbar = new Toolbar(this);
+//        setSupportActionBar(toolbar);
+
         dataStore = new DataStore(this);
 
         //cameraHandler = new Handler();
@@ -55,6 +92,7 @@ public class MainActivity extends AppCompatActivity {
 
         binding.surfaceView.setOnClickListener(a -> {
             Log.d(TAG, "setOnClickListener");
+            cameraControl.sessionClose();
             cameraControl.switchCamera();
             initCameraControl();
         });
@@ -63,8 +101,7 @@ public class MainActivity extends AppCompatActivity {
     void initCameraControl() {
         Log.d(TAG, "initCameraControl");
         cameraControl.initialze(
-                MainActivity.this,
-                cameraHandler,
+                FaceLearnActivity.this,
                 binding.surfaceView.getHolder()
 //                ,
 //                (bitmap) -> {
@@ -80,7 +117,7 @@ public class MainActivity extends AppCompatActivity {
 //                        Toast.makeText(MainActivity.this, "画像解析に失敗しました。", Toast.LENGTH_LONG).show();
 //                    }
 //                }
-                );
+        );
     }
 
     public CameraControl getCameraControl() {

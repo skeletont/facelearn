@@ -6,7 +6,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     tools:context=".ui.look.LookFragment">
-
+<!--
     <TextView
         android:id="@+id/text_look"
         android:layout_width="match_parent"
@@ -20,7 +20,7 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
-
+-->
     <ImageButton
         android:id="@+id/search"
         android:layout_width="64dp"
@@ -33,7 +33,7 @@
         android:src="@android:drawable/ic_menu_search"
         android:topLeftRadius="16dp"
         android:topRightRadius="16dp"
-        android:background="@drawable/button_oval"
+        android:background="@drawable/button_oval_no_pressed"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
 

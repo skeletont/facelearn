@@ -9,9 +9,11 @@ import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.fragment.app.Fragment;
 import androidx.lifecycle.ViewModelProvider;
+import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
-import com.example.facelearn.MainActivity;
+import com.example.facelearn.FaceLearnActivity;
+import com.example.facelearn.R;
 import com.example.facelearn.databinding.FragmentManageBinding;
 import com.example.facelearn.util.DataStore;
 
@@ -27,14 +29,31 @@ public class ManagementFragment extends Fragment {
         binding = FragmentManageBinding.inflate(inflater, container, false);
         View root = binding.getRoot();
 
-        final TextView textView = binding.textManage;
-        managementViewModel.getText().observe(getViewLifecycleOwner(), textView::setText);
+//        final TextView textView = binding.textManage;
+//        managementViewModel.getText().observe(getViewLifecycleOwner(), textView::setText);
 
-        MainActivity activity = (MainActivity) requireActivity();
+        FaceLearnActivity activity = (FaceLearnActivity) requireActivity();
         DataStore dataStore = activity.getDataStore();
-
-        final RecyclerView listViwe = binding.list;
-        listViwe.setAdapter(new CustomAdapter(dataStore.getList().toArray(new DataStore.Record[0])));
+        DataStore.Record[] records = dataStore.getList().toArray(new DataStore.Record[0]);
+//        records = new DataStore.Record[] {
+//                new DataStore.Record("1", "ant"),
+//                new DataStore.Record("2", "bear"),
+//                new DataStore.Record("3", "cat"),
+//                new DataStore.Record("4", "dog"),
+//                new DataStore.Record("5", "elephant"),
+//                new DataStore.Record("6", "f"),
+//                new DataStore.Record("7", "g"),
+//                new DataStore.Record("8", "h"),
+//                new DataStore.Record("9", "i"),
+//                new DataStore.Record("10", "j"),
+//                new DataStore.Record("11", "k"),
+//                new DataStore.Record("12", "l"),
+//                new DataStore.Record("13", "m"),
+//        };
+        final RecyclerView listView = binding.list;
+        listView.setAdapter(new CustomAdapter(records));
+        // listView.invalidate();
+        listView.setLayoutManager(new LinearLayoutManager(this.requireActivity()));
 
         return root;
     }
@@ -46,7 +65,7 @@ public class ManagementFragment extends Fragment {
     }
 
     void test(){
-        MainActivity activity = (MainActivity) requireActivity();
+        FaceLearnActivity activity = (FaceLearnActivity) requireActivity();
         DataStore dataStore = activity.getDataStore();
         dataStore.getList();
 
@@ -61,22 +80,22 @@ public class ManagementFragment extends Fragment {
          * (custom ViewHolder)
          */
         public static class ViewHolder extends RecyclerView.ViewHolder {
-            private final TextView textView1;
-            private final TextView textView2;
+            private final TextView textKey;
+            private final TextView textName;
 
             public ViewHolder(View view) {
                 super(view);
                 // Define click listener for the ViewHolder's View
 
-                textView1 = (TextView) view.findViewById(android.R.id.text1);
-                textView2 = (TextView) view.findViewById(android.R.id.text2);
+                textKey = (TextView) view.findViewById(R.id.textKey);
+                textName = (TextView) view.findViewById(R.id.textName);
             }
 
-            public TextView getTextView1() {
-                return textView1;
+            public TextView getTextKey() {
+                return textKey;
             }
-            public TextView getTextView2() {
-                return textView2;
+            public TextView getTextName() {
+                return textName;
             }
         }
 
@@ -95,7 +114,7 @@ public class ManagementFragment extends Fragment {
         public ViewHolder onCreateViewHolder(ViewGroup viewGroup, int viewType) {
             // Create a new view, which defines the UI of the list item
             View view = LayoutInflater.from(viewGroup.getContext())
-                    .inflate(android.R.layout.simple_list_item_2, viewGroup, false);
+                    .inflate(R.layout.item_view, viewGroup, false);
 
             return new ViewHolder(view);
         }
@@ -106,8 +125,8 @@ public class ManagementFragment extends Fragment {
 
             // Get element from your dataset at this position and replace the
             // contents of the view with that element
-            viewHolder.getTextView1().setText(localDataSet[position].key);
-            viewHolder.getTextView2().setText(localDataSet[position].name);
+            viewHolder.getTextKey().setText(localDataSet[position].key);
+            viewHolder.getTextName().setText(localDataSet[position].name);
         }
 
         // Return the size of your dataset (invoked by the layout manager)

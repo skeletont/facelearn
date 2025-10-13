@@ -5,6 +5,7 @@ import android.content.Context;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.ImageFormat;
+import android.graphics.Matrix;
 import android.hardware.camera2.CameraAccessException;
 import android.hardware.camera2.CameraCaptureSession;
 import android.hardware.camera2.CameraCharacteristics;
@@ -15,6 +16,8 @@ import android.hardware.camera2.CaptureRequest;
 import android.hardware.camera2.CaptureResult;
 import android.hardware.camera2.TotalCaptureResult;
 import android.hardware.camera2.params.Face;
+import android.hardware.camera2.params.OutputConfiguration;
+import android.hardware.camera2.params.SessionConfiguration;
 import android.media.Image;
 import android.media.ImageReader;
 import android.os.Handler;
@@ -30,8 +33,10 @@ import androidx.core.app.ActivityCompat;
 import com.google.common.util.concurrent.ListenableFuture;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
+import java.util.function.Supplier;
 
 public class CameraControl {
     private static final String TAG = "CameraControl";
@@ -46,6 +51,8 @@ public class CameraControl {
 
     private SurfaceHolder surfaceHolder;
 
+    private CameraDevice cameraDevice;
+
     private CameraCaptureSession session;
 
     private ListenableFuture<ProcessCameraProvider> cameraProviderFuture;
@@ -54,7 +61,7 @@ public class CameraControl {
 
     private CaptureFailed onCaptureFailed;
 
-    private int cameraIndex = 1;
+    private int cameraIndex = 0;
 
     private HandlerThread handlerThread;
 
@@ -68,20 +75,12 @@ public class CameraControl {
 
     public void initialze(
             Context context,
-            Handler cameraHandler,
             SurfaceHolder holder
-//            ,
-//            CaptureCompleted onCaptureCompleted
     ) {
         this.context = context;
-        this.cameraHandler = cameraHandler;
-
-        handlerThread = new HandlerThread("camera-control");
-        handlerThread.start();
+        this.handlerThread = new HandlerThread("camera-control");
+        this.handlerThread.start();
         this.cameraHandler = new Handler(handlerThread.getLooper());
-
-//        this.onCaptureCompleted = onCaptureCompleted;
-
         this.cameraManager = (CameraManager) this.context.getSystemService(Context.CAMERA_SERVICE);
 
         if (this.surfaceHolder == null) {
@@ -89,7 +88,8 @@ public class CameraControl {
                 @Override
                 public void surfaceChanged(@NonNull SurfaceHolder holder, int format, int width, int height) {
                     Log.d(TAG, "surfaceChanged");
-                    // CameraControl.this.surfaceHolder = holder;
+                    CameraControl.this.surfaceHolder = holder;
+                    initCamera2(cameraManager);
                 }
 
                 @Override
@@ -125,15 +125,11 @@ public class CameraControl {
         }
         try {
             String[] cameraIds = cameraManager.getCameraIdList();
-            for (String id : cameraIds) {
-                Log.d(TAG, "camera id: " + id);
-            }
             String cameraId = cameraIds[cameraIndex % cameraIds.length];
-            Log.d(TAG, "cameraId = " + cameraId);
 
             CameraCharacteristics characteristics = cameraManager.getCameraCharacteristics(cameraId);
             // characteristics.get(CameraCharacteristics.SENSOR_INFO_PIXEL_ARRAY_SIZE);
-            Size[] sizes = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
+            Size[] sizes = Objects.requireNonNull(characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP))
                     .getOutputSizes(ImageFormat.JPEG);
             imageReader = ImageReader.newInstance(
                     sizes[0].getWidth(), sizes[0].getHeight(), ImageFormat.JPEG, 3);
@@ -155,37 +151,48 @@ public class CameraControl {
         @Override
         public void onDisconnected(@NonNull CameraDevice camera) {
             Log.d(TAG, "onDisconnected");
+            cameraDevice = camera;
         }
 
         @Override
         public void onError(@NonNull CameraDevice camera, int error) {
             Log.d(TAG, "onError");
+            cameraDevice = camera;
         }
 
         @Override
-        public void onOpened(@NonNull CameraDevice cameraDevice) {
+        public void onOpened(@NonNull CameraDevice camera) {
             Log.d(TAG, "onOpened");
-            try {
-                cameraDevice.createCaptureSession(
-                        List.of(
-                                imageReader.getSurface(),
-                                surfaceHolder.getSurface()
-                        ),
-                        cameraCaptureSessionStateCallback,
-                        cameraHandler);
-            } catch (CameraAccessException e) {
-                // throw new RuntimeException(e);
-                e.printStackTrace();
-            }
+            cameraDevice = camera;
+            onOpen(cameraDevice);
         }
     };
+
+    private void onOpen(CameraDevice cameraDevice) {
+        try {
+            SessionConfiguration config = new SessionConfiguration(
+                    SessionConfiguration.SESSION_REGULAR,
+                    List.of(
+                            new OutputConfiguration(imageReader.getSurface()),
+                            new OutputConfiguration(surfaceHolder.getSurface())
+                    ),
+                    cameraExecutor,
+                    cameraCaptureSessionStateCallback
+            );
+            cameraDevice.createCaptureSession(config);
+        } catch (CameraAccessException e) {
+            // throw new RuntimeException(e);
+            e.printStackTrace();
+        }
+    }
 
     CameraCaptureSession.StateCallback cameraCaptureSessionStateCallback
             = new CameraCaptureSession.StateCallback() {
         @Override
         public void onConfigureFailed(@NonNull CameraCaptureSession session) {
             Log.d(TAG, "onConfigureFailed");
-            CameraControl.this.session = null;
+            CameraControl.this.session = session;
+            // onOpen(cameraDevice);
         }
 
         @Override
@@ -208,7 +215,6 @@ public class CameraControl {
                     CaptureRequest.CONTROL_MODE,
                     CaptureRequest.CONTROL_MODE_AUTO);
             session.setRepeatingRequest(captureRequestPreview.build(), null, null);
-
         } catch (CameraAccessException e) {
             // throw new RuntimeException(e);
             e.printStackTrace();
@@ -294,8 +300,14 @@ public class CameraControl {
 
                 image.close();
 
+                // バックカメラで、ポートレート状態で、左に90度回転しているので、画一的に右90度回転する
+                // フロントカメラで、ポートレート状態で、右に90度回転しているので、画一的に右270度回転する
+                final Matrix m = new Matrix();
+                m.setRotate(cameraDevice.getId().equals("0") ? 90 : 270);
+                final Bitmap bitmap2 = Bitmap.createBitmap(bitmap, 0, 0, bitmap.getWidth(), bitmap.getHeight(), m, false);
+
                 if (onCaptureCompleted != null) {
-                    onCaptureCompleted.onCaptureCompleted(bitmap);
+                    onCaptureCompleted.onCaptureCompleted(bitmap2);
                 }
             }
         }
@@ -317,5 +329,9 @@ public class CameraControl {
     public void switchCamera() {
         Log.d(TAG, "switchCamera");
         cameraIndex++;
+    }
+
+    public void sessionClose() {
+        session.close();
     }
 }
